@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}{{ video[3] }} - Partage de Vidéos{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="ratio ratio-16x9 mb-3">
+            <video controls class="rounded">
+                <source src="{{ url_for('serve_video', filename=video[1]) }}" type="video/mp4">
+                Votre navigateur ne supporte pas la lecture de vidéos.
+            </video>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-body">
+                <h4 class="card-title">{{ video[3] }}</h4>
+                
+                <div class="mb-3">
+                    <small class="text-muted">
+                        <strong>Durée :</strong> 
+                        {{ "%.0f"|format(video[5] // 60) }}:{{ "%02.0f"|format(video[5] % 60) }}
+                    </small><br>
+                    <small class="text-muted">
+                        <strong>Uploadé le :</strong> {{ video[6] }}
+                    </small>
+                </div>
+
+                {% if video[4] %}
+                <div class="mb-3">
+                    <h6>Description :</h6>
+                    <p class="card-text">{{ video[4] }}</p>
+                </div>
+                {% endif %}
+
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+                        ⬅️ Retour aux vidéos
+                    </a>
+                    <a href="{{ url_for('download_video', video_id=video[0]) }}" 
+                       class="btn btn-success">
+                       ⬇️ Télécharger cette vidéo
+                    </a>
+                    <a href="{{ url_for('delete_video', video_id=video[0]) }}" 
+                       class="btn btn-outline-danger"
+                       onclick="return confirm('Êtes-vous sûr de vouloir supprimer cette vidéo ?')">
+                       🗑️ Supprimer cette vidéo
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

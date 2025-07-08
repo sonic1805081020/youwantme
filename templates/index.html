@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Mes Vidéos</h1>
+    <a href="{{ url_for('upload_video') }}" class="btn btn-primary">
+        ➕ Ajouter une vidéo
+    </a>
+</div>
+
+{% if videos %}
+    <div class="row">
+        {% for video in videos %}
+        <div class="col-md-4 mb-4">
+            <div class="card video-card h-100">
+                <div class="position-relative">
+                    <video class="card-img-top" style="height: 200px; object-fit: cover;" 
+                           poster="" preload="metadata">
+                        <source src="{{ url_for('serve_video', filename=video[1]) }}" type="video/mp4">
+                    </video>
+                    <div class="video-duration">
+                        {{ "%.0f"|format(video[5] // 60) }}:{{ "%02.0f"|format(video[5] % 60) }}
+                    </div>
+                </div>
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title">{{ video[3] }}</h5>
+                    <p class="card-text flex-grow-1">
+                        {{ video[4][:100] }}{% if video[4]|length > 100 %}...{% endif %}
+                    </p>
+                    <small class="text-muted mb-2">
+                        Uploadé le {{ video[6] }}
+                    </small>
+                    <div class="mt-auto">
+                        <a href="{{ url_for('watch_video', video_id=video[0]) }}" 
+                           class="btn btn-primary btn-sm">▶️ Regarder</a>
+                        <a href="{{ url_for('download_video', video_id=video[0]) }}" 
+                           class="btn btn-success btn-sm">⬇️ Télécharger</a>
+                        <a href="{{ url_for('delete_video', video_id=video[0]) }}" 
+                           class="btn btn-danger btn-sm"
+                           onclick="return confirm('Êtes-vous sûr de vouloir supprimer cette vidéo ?')">
+                           🗑️ Supprimer</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="text-center py-5">
+        <h3 class="text-muted">Aucune vidéo pour le moment</h3>
+        <p class="text-muted">Commencez par uploader votre première vidéo !</p>
+        <a href="{{ url_for('upload_video') }}" class="btn btn-primary">
+            ➕ Ajouter une vidéo
+        </a>
+    </div>
+{% endif %}
+{% endblock %}

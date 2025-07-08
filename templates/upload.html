@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Upload - Partage de Vidéos{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h2>Ajouter une nouvelle vidéo</h2>
+        
+        <div class="alert alert-info">
+            <strong>Règles :</strong>
+            <ul class="mb-0">
+                <li>Formats acceptés : MP4, AVI, MOV, MKV, WMV, FLV, WebM</li>
+                <li>Taille maximale : 100MB</li>
+            </ul>
+        </div>
+
+        <form method="POST" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label for="title" class="form-label">Titre *</label>
+                <input type="text" class="form-control" id="title" name="title" required>
+            </div>
+
+            <div class="mb-3">
+                <label for="description" class="form-label">Description</label>
+                <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+            </div>
+
+            <div class="mb-3">
+                <label for="video" class="form-label">Fichier vidéo *</label>
+                <input type="file" class="form-control" id="video" name="video" 
+                       accept="video/*" required>
+                <div class="form-text">
+                    Sélectionnez un fichier vidéo
+                </div>
+            </div>
+
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="{{ url_for('index') }}" class="btn btn-secondary">Annuler</a>
+                <button type="submit" class="btn btn-primary">📤 Uploader</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// Validation côté client (optionnelle)
+document.getElementById('video').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        console.log('Fichier sélectionné:', file.name);
+    }
+});
+</script>
+{% endblock %}
