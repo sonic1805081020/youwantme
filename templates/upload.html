@@ -1,19 +1,29 @@
 {% extends "base.html" %}
 
-{% block title %}Upload - Partage de Vidéos{% endblock %}
+{% block title %}Upload - Partage de Médias{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-8">
-        <h2>Ajouter une nouvelle vidéo</h2>
+        <h2>📤 Uploader un média</h2>
         
         <div class="alert alert-info">
-            <strong>Règles :</strong>
+            <strong>📁 Stockage intelligent :</strong>
             <ul class="mb-0">
-                <li>Formats acceptés : MP4, AVI, MOV, MKV, WMV, FLV, WebM</li>
-                <li>Taille maximale : 100MB</li>
+                <li>☁️ <strong>Priorité Cloudinary</strong> : Stockage permanent dans le cloud</li>
+                <li>💾 <strong>Fallback local</strong> : Si Cloudinary échoue</li>
+                <li>🎬 <strong>Vidéos</strong> : MP4, AVI, MOV, MKV, WMV, FLV, WebM</li>
+                <li>📸 <strong>Photos</strong> : JPG, JPEG, PNG, GIF, BMP, WebP</li>
+                <li>📏 <strong>Taille max</strong> : 100MB</li>
             </ul>
         </div>
+
+        {% if not config.get('CLOUDINARY_CLOUD_NAME') %}
+        <div class="alert alert-warning">
+            <strong>⚠️ Configuration Cloudinary manquante</strong><br>
+            Les fichiers seront stockés localement (supprimés toutes les 24h sur Render).
+        </div>
+        {% endif %}
 
         <form method="POST" enctype="multipart/form-data">
             <div class="mb-3">
@@ -27,29 +37,89 @@
             </div>
 
             <div class="mb-3">
-                <label for="video" class="form-label">Fichier vidéo *</label>
+                <label for="video" class="form-label">Fichier média *</label>
                 <input type="file" class="form-control" id="video" name="video" 
-                       accept="video/*" required>
+                       accept="video/*,image/*" required>
                 <div class="form-text">
-                    Sélectionnez un fichier vidéo
+                    Sélectionnez une vidéo ou une photo
                 </div>
+            </div>
+
+            <div id="preview" class="mb-3 d-none">
+                <h6>Aperçu :</h6>
+                <div id="previewContainer"></div>
+                <div id="fileInfo" class="mt-2 text-muted"></div>
             </div>
 
             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                 <a href="{{ url_for('index') }}" class="btn btn-secondary">Annuler</a>
-                <button type="submit" class="btn btn-primary">📤 Uploader</button>
+                <button type="submit" class="btn btn-primary">
+                    <span id="uploadText">☁️ Uploader vers le cloud</span>
+                    <span id="uploadSpinner" class="d-none">
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        Upload en cours...
+                    </span>
+                </button>
             </div>
         </form>
     </div>
 </div>
 
 <script>
-// Validation côté client (optionnelle)
 document.getElementById('video').addEventListener('change', function(e) {
     const file = e.target.files[0];
+    const preview = document.getElementById('preview');
+    const container = document.getElementById('previewContainer');
+    const fileInfo = document.getElementById('fileInfo');
+    const uploadText = document.getElementById('uploadText');
+    
     if (file) {
-        console.log('Fichier sélectionné:', file.name);
+        const isImage = file.type.startsWith('image/');
+        const isVideo = file.type.startsWith('video/');
+        const fileSize = (file.size / 1024 / 1024).toFixed(2);
+        
+        preview.classList.remove('d-none');
+        container.innerHTML = '';
+        
+        // Afficher les infos du fichier
+        fileInfo.innerHTML = `
+            <strong>Fichier :</strong> ${file.name}<br>
+            <strong>Taille :</strong> ${fileSize} MB<br>
+            <strong>Type :</strong> ${isImage ? '📸 Photo' : '🎬 Vidéo'}
+        `;
+        
+        // Mettre à jour le texte du bouton
+        uploadText.textContent = isImage ? '📸 Uploader la photo' : '🎬 Uploader la vidéo';
+        
+        if (isImage) {
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(file);
+            img.style.maxWidth = '300px';
+            img.style.maxHeight = '200px';
+            img.className = 'img-thumbnail';
+            container.appendChild(img);
+        } else if (isVideo) {
+            const video = document.createElement('video');
+            video.src = URL.createObjectURL(file);
+            video.controls = true;
+            video.style.maxWidth = '300px';
+            video.style.maxHeight = '200px';
+            video.className = 'rounded';
+            container.appendChild(video);
+        }
+    } else {
+        preview.classList.add('d-none');
+        uploadText.textContent = '☁️ Uploader vers le cloud';
     }
+});
+
+// Animation lors de l'envoi
+document.querySelector('form').addEventListener('submit', function(e) {
+    const uploadText = document.getElementById('uploadText');
+    const uploadSpinner = document.getElementById('uploadSpinner');
+    
+    uploadText.classList.add('d-none');
+    uploadSpinner.classList.remove('d-none');
 });
 </script>
 {% endblock %}
