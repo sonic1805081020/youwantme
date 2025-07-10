@@ -6,45 +6,11 @@
 <div class="row">
     <div class="col-lg-8">
         <div class="ratio ratio-16x9 mb-3">
-            <video controls class="rounded" preload="metadata" style="background: #000;" id="mainVideo">
+            <video controls class="rounded">
                 <source src="{{ url_for('serve_video', filename=video[1]) }}" type="video/mp4">
-                <source src="{{ url_for('serve_video', filename=video[1]) }}" type="video/webm">
-                <source src="{{ url_for('serve_video', filename=video[1]) }}" type="video/ogg">
                 Votre navigateur ne supporte pas la lecture de vidéos.
             </video>
-            
-            <!-- Indicateur de chargement -->
-            <div id="loadingIndicator" class="position-absolute top-50 start-50 translate-middle text-white d-none">
-                <div class="spinner-border" role="status">
-                    <span class="visually-hidden">Chargement...</span>
-                </div>
-                <div class="mt-2">Chargement de la vidéo...</div>
-            </div>
         </div>
-        
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                const video = document.getElementById('mainVideo');
-                const loader = document.getElementById('loadingIndicator');
-                
-                // Afficher le loader pendant le chargement
-                video.addEventListener('loadstart', function() {
-                    loader.classList.remove('d-none');
-                });
-                
-                video.addEventListener('canplay', function() {
-                    loader.classList.add('d-none');
-                });
-                
-                video.addEventListener('error', function() {
-                    loader.classList.add('d-none');
-                    console.error('Erreur de chargement vidéo');
-                });
-                
-                // Précharger les métadonnées au chargement de la page
-                video.load();
-            });
-        </script>
     </div>
     <div class="col-lg-4">
         <div class="card">
@@ -53,10 +19,8 @@
                 
                 <div class="mb-3">
                     <small class="text-muted">
-                        {% if video[5] and video[5] > 0 %}
-                            <strong>Durée :</strong> 
-                            {{ "%.0f"|format(video[5] // 60) }}:{{ "%02.0f"|format(video[5] % 60) }}
-                        {% endif %}
+                        <strong>Durée :</strong> 
+                        {{ "%.0f"|format(video[5] // 60) }}:{{ "%02.0f"|format(video[5] % 60) }}
                     </small><br>
                     <small class="text-muted">
                         <strong>Uploadé le :</strong> {{ video[6] }}
@@ -88,4 +52,4 @@
         </div>
     </div>
 </div>
-{% endblock %>
+{% endblock %}

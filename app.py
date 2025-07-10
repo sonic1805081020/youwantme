@@ -13,102 +13,47 @@ app.config['SECRET_KEY'] = 'your-secret-key-here'
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size
 
-# Extensions vidéo et photo autorisées
-ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'wmv', 'flv', 'webm', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'}
+# Extensions vidéo autorisées
+ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'wmv', 'flv', 'webm'}
 
-# Créer les dossiers uploads s'ils n'existent pas
+# Créer le dossier uploads s'il n'existe pas
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'photos'), exist_ok=True)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def is_image(filename):
-    image_extensions = {'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in image_extensions
-
-def is_video(filename):
-    video_extensions = {'mp4', 'avi', 'mov', 'mkv', 'wmv', 'flv', 'webm'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in video_extensions
-
-def upload_to_cloudinary(file, file_type):
-    """Upload un fichier vers Cloudinary"""
-    try:
-        if file_type == 'photo':
-            # Upload d'image
-            result = cloudinary.uploader.upload(
-                file,
-                resource_type="image",
-                folder="mes_medias/photos",
-                use_filename=True,
-                unique_filename=True,
-                quality="auto",
-                fetch_format="auto"
-            )
-        else:
-            # Upload de vidéo
-            result = cloudinary.uploader.upload(
-                file,
-                resource_type="video",
-                folder="mes_medias/videos",
-                use_filename=True,
-                unique_filename=True
-            )
-        
-        return {
-            'success': True,
-            'url': result['secure_url'],
-            'public_id': result['public_id'],
-            'duration': result.get('duration', 0),
-            'format': result.get('format', ''),
-            'size': result.get('bytes', 0)
-        }
-    except Exception as e:
-        return {
-            'success': False,
-            'error': str(e)
-        }
-
-def delete_from_cloudinary(public_id, file_type):
-    """Supprimer un fichier de Cloudinary"""
-    try:
-        resource_type = "image" if file_type == 'photo' else "video"
-        result = cloudinary.uploader.destroy(public_id, resource_type=resource_type)
-        return result.get('result') == 'ok'
-    except Exception as e:
-        print(f"Erreur suppression Cloudinary: {e}")
-        return False
-
-def is_image(filename):
-    image_extensions = {'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in image_extensions
-
-def is_video(filename):
-    video_extensions = {'mp4', 'avi', 'mov', 'mkv', 'wmv', 'flv', 'webm'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in video_extensions
-
 def get_video_duration(file_path):
-    """Obtenir la durée d'une vidéo avec ffprobe (optimisé)"""
+    """Obtenir la durée d'une vidéo avec ffprobe"""
     try:
         cmd = [
             'ffprobe', '-v', 'quiet', '-print_format', 'json', 
-            '-show_format', '-select_streams', 'v:0', file_path
+            '-show_format', file_path
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            duration = float(data['format']['duration'])
-            return duration
-    except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError, KeyError):
-        pass
-    return None
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        data = json.loads(result.stdout)
+        duration = float(data['format']['duration'])
+        return duration
+    except:
+        return None
 
 def init_db():
     """Initialiser la base de données"""
     conn = sqlite3.connect('videos.db')
     c = conn.cursor()
     
-    # Table des utilisateurs (créer en premier)
+    # Table des vidéos
+    c.execute('''CREATE TABLE IF NOT EXISTS videos
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  filename TEXT NOT NULL,
+                  original_name TEXT NOT NULL,
+                  title TEXT NOT NULL,
+                  description TEXT,
+                  duration REAL,
+                  upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  user_id INTEGER,
+                  FOREIGN KEY (user_id) REFERENCES users (id))''')
+    
+    # Table des utilisateurs
     c.execute('''CREATE TABLE IF NOT EXISTS users
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   username TEXT UNIQUE NOT NULL,
@@ -117,48 +62,10 @@ def init_db():
     
     # Créer le compte par défaut s'il n'existe pas
     c.execute('SELECT id FROM users WHERE username = ?', ('youwantme',))
-    default_user = c.fetchone()
-    if not default_user:
+    if not c.fetchone():
         password_hash = generate_password_hash('lyublyubaby081020!')
         c.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)',
                   ('youwantme', password_hash))
-        c.execute('SELECT id FROM users WHERE username = ?', ('youwantme',))
-        default_user = c.fetchone()
-    
-    default_user_id = default_user[0]
-    
-    # Vérifier si la table videos existe
-    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='videos'")
-    table_exists = c.fetchone()
-    
-    if not table_exists:
-        # Créer la nouvelle table avec support des liens et photos
-        c.execute('''CREATE TABLE videos
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                      filename TEXT,
-                      original_name TEXT,
-                      title TEXT NOT NULL,
-                      description TEXT,
-                      duration REAL,
-                      upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                      user_id INTEGER,
-                      media_type TEXT DEFAULT 'upload',
-                      external_url TEXT,
-                      file_type TEXT DEFAULT 'video',
-                      FOREIGN KEY (user_id) REFERENCES users (id))''')
-    else:
-        # Vérifier si la colonne user_id existe
-        c.execute("PRAGMA table_info(videos)")
-        columns = [column[1] for column in c.fetchall()]
-        
-        if 'user_id' not in columns:
-            # Ajouter les nouvelles colonnes
-            c.execute('ALTER TABLE videos ADD COLUMN user_id INTEGER')
-            c.execute('ALTER TABLE videos ADD COLUMN media_type TEXT DEFAULT "upload"')
-            c.execute('ALTER TABLE videos ADD COLUMN external_url TEXT')
-            c.execute('ALTER TABLE videos ADD COLUMN file_type TEXT DEFAULT "video"')
-            # Assigner toutes les vidéos existantes à l'utilisateur par défaut
-            c.execute('UPDATE videos SET user_id = ? WHERE user_id IS NULL', (default_user_id,))
     
     conn.commit()
     conn.close()
@@ -199,6 +106,48 @@ def login():
             flash('Nom d\'utilisateur ou mot de passe incorrect', 'error')
     
     return render_template('login.html')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    """Page d'inscription"""
+    if request.method == 'POST':
+        username = request.form.get('username', '')
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        
+        if not username or not password or not confirm_password:
+            flash('Tous les champs sont requis', 'error')
+            return redirect(request.url)
+        
+        if password != confirm_password:
+            flash('Les mots de passe ne correspondent pas', 'error')
+            return redirect(request.url)
+        
+        if len(password) < 6:
+            flash('Le mot de passe doit contenir au moins 6 caractères', 'error')
+            return redirect(request.url)
+        
+        conn = sqlite3.connect('videos.db')
+        c = conn.cursor()
+        
+        # Vérifier si l'utilisateur existe déjà
+        c.execute('SELECT id FROM users WHERE username = ?', (username,))
+        if c.fetchone():
+            flash('Ce nom d\'utilisateur existe déjà', 'error')
+            conn.close()
+            return redirect(request.url)
+        
+        # Créer le nouvel utilisateur
+        password_hash = generate_password_hash(password)
+        c.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)',
+                  (username, password_hash))
+        conn.commit()
+        conn.close()
+        
+        flash('Compte créé avec succès ! Vous pouvez maintenant vous connecter.', 'success')
+        return redirect(url_for('login'))
+    
+    return render_template('register.html')
 
 @app.route('/logout')
 def logout():
@@ -248,10 +197,10 @@ def upload_video():
             filename = timestamp + filename
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             
-            # Sauvegarder le fichier
+            # Sauvegarder temporairement pour vérifier la durée
             file.save(filepath)
             
-            # Obtenir la durée de la vidéo (avec timeout)
+            # Obtenir la durée de la vidéo
             duration = get_video_duration(filepath)
             if duration is None:
                 duration = 0  # Valeur par défaut si impossible de déterminer
@@ -292,7 +241,7 @@ def watch_video(video_id):
 @app.route('/video/<filename>')
 @login_required
 def serve_video(filename):
-    """Servir les fichiers vidéo avec support du streaming"""
+    """Servir les fichiers vidéo"""
     # Vérifier que le fichier appartient à l'utilisateur connecté
     conn = sqlite3.connect('videos.db')
     c = conn.cursor()
@@ -304,125 +253,56 @@ def serve_video(filename):
         flash('Accès non autorisé', 'error')
         return redirect(url_for('index'))
     
-    def generate():
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        if not os.path.exists(filepath):
-            return
-            
-        with open(filepath, 'rb') as f:
-            data = f.read(1024 * 1024)  # Lire par chunks de 1MB
-            while data:
-                yield data
-                data = f.read(1024 * 1024)
-    
-    # Support du range request pour le streaming
-    range_header = request.headers.get('Range', None)
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    
-    if not os.path.exists(filepath):
-        return "Fichier non trouvé", 404
-    
-    file_size = os.path.getsize(filepath)
-    
-    if range_header:
-        byte_start = 0
-        byte_end = file_size - 1
-        
-        range_match = range_header.replace('bytes=', '').split('-')
-        if range_match[0]:
-            byte_start = int(range_match[0])
-        if range_match[1]:
-            byte_end = int(range_match[1])
-        
-        content_length = byte_end - byte_start + 1
-        
-        def generate_range():
-            with open(filepath, 'rb') as f:
-                f.seek(byte_start)
-                remaining = content_length
-                while remaining:
-                    chunk_size = min(1024 * 1024, remaining)  # 1MB chunks
-                    data = f.read(chunk_size)
-                    if not data:
-                        break
-                    remaining -= len(data)
-                    yield data
-        
-        response = app.response_class(
-            generate_range(),
-            206,  # Partial Content
-            headers={
-                'Content-Range': f'bytes {byte_start}-{byte_end}/{file_size}',
-                'Accept-Ranges': 'bytes',
-                'Content-Length': str(content_length),
-                'Content-Type': 'video/mp4',
-            }
-        )
-        return response
-    else:
-        return send_from_directory(
-            app.config['UPLOAD_FOLDER'], 
-            filename,
-            mimetype='video/mp4'
-        )
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-@app.route('/download/<int:media_id>')
+@app.route('/download/<int:video_id>')
 @login_required
-def download_media(media_id):
-    """Télécharger un média"""
+def download_video(video_id):
+    """Télécharger une vidéo"""
     conn = sqlite3.connect('videos.db')
     c = conn.cursor()
-    c.execute('SELECT filename, original_name, file_type FROM videos WHERE id = ? AND user_id = ?', (media_id, session['user_id']))
-    media = c.fetchone()
+    # Vérifier que la vidéo appartient à l'utilisateur connecté
+    c.execute('SELECT filename, original_name FROM videos WHERE id = ? AND user_id = ?', (video_id, session['user_id']))
+    video = c.fetchone()
     conn.close()
     
-    if not media or not media[0]:  # Pas de fichier local
-        flash('Média non trouvé ou accès non autorisé', 'error')
+    if not video:
+        flash('Vidéo non trouvée ou accès non autorisé', 'error')
         return redirect(url_for('index'))
     
-    if media[2] == 'photo':
-        folder = os.path.join(app.config['UPLOAD_FOLDER'], 'photos')
-    else:
-        folder = app.config['UPLOAD_FOLDER']
-    
     return send_from_directory(
-        folder, 
-        media[0], 
+        app.config['UPLOAD_FOLDER'], 
+        video[0], 
         as_attachment=True, 
-        download_name=media[1]
+        download_name=video[1]
     )
 
-@app.route('/delete/<int:media_id>')
+@app.route('/delete/<int:video_id>')
 @login_required
-def delete_media(media_id):
-    """Supprimer un média"""
+def delete_video(video_id):
+    """Supprimer une vidéo"""
     conn = sqlite3.connect('videos.db')
     c = conn.cursor()
-    c.execute('SELECT filename, file_type FROM videos WHERE id = ? AND user_id = ?', (media_id, session['user_id']))
-    media = c.fetchone()
+    # Vérifier que la vidéo appartient à l'utilisateur connecté
+    c.execute('SELECT filename FROM videos WHERE id = ? AND user_id = ?', (video_id, session['user_id']))
+    video = c.fetchone()
     
-    if media:
-        # Supprimer le fichier s'il existe
-        if media[0]:  # filename existe
-            if media[1] == 'photo':
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'photos', media[0])
-            else:
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], media[0])
-            
-            if os.path.exists(filepath):
-                os.remove(filepath)
+    if video:
+        # Supprimer le fichier
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], video[0])
+        if os.path.exists(filepath):
+            os.remove(filepath)
         
         # Supprimer de la base de données
-        c.execute('DELETE FROM videos WHERE id = ? AND user_id = ?', (media_id, session['user_id']))
+        c.execute('DELETE FROM videos WHERE id = ? AND user_id = ?', (video_id, session['user_id']))
         conn.commit()
-        flash('Média supprimé avec succès', 'success')
+        flash('Vidéo supprimée avec succès', 'success')
     else:
-        flash('Média non trouvé ou accès non autorisé', 'error')
+        flash('Vidéo non trouvée ou accès non autorisé', 'error')
     
     conn.close()
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
     init_db()
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(debug=True)
